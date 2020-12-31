@@ -1,3 +1,5 @@
+#pragma once
+
 // put information here which is specific to your system which 
 // you don't want to store in your GitHub repository
 // for example your Wifi ssid and password 

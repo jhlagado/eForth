@@ -1,43 +1,3 @@
-/******************************************************************************/
-/* esp32Forth, Version 6.3 : for NodeMCU ESP32S                                 */
-/******************************************************************************/
-/* 16jun25cht  _63                                                            */
-/* web server                                                                */
-/* 16jun19cht  _62                                                            */
-/* structures                                                                 */
-/* 14jun19cht  _61                                                            */
-/* macro assembler with labels                                                */
-/* 10may19cht  _54                                                            */
-/* robot tests                                                                */
-/* 21jan19cht  _51                                                            */
-/* 8 channel electronic organ                                                 */
-/* 15jan19cht  _50                                                            */
-/* Clean up for AIR robot                                                     */
-/* 03jan19cht  _47-49                                                         */
-/* Move to ESP32                                                              */
-/* 07jan19cht  _46                                                            */
-/* delete UDP                                                                 */
-/* 03jan19cht  _45                                                            */
-/* Move to NodeMCU ESP32S Kit                                                 */
-/* 18jul17cht  _44                                                            */
-/* Byte code sequencer                                                        */
-/* 14jul17cht  _43                                                            */
-/* Stacks in circular buffers                                                 */
-/* 01jul17cht  _42                                                            */
-/* Compiled as an Arduino sketch                                              */
-/* 20mar17cht  _41                                                            */
-/* Compiled as an Arduino sketch                                              */
-/* Follow the ceForth model with 64 primitives                                */
-/* Serial Monitor at 115200 baud                                              */
-/* Send and receive UDP packets in parallel with Serial Monitor               */
-/* Case insensitive interpreter                                               */
-/* data[] must be filled with rom42.h eForth dictionary                       */
-/* 22jun17cht                                                                 */
-/* Stacks are 256 cell circular buffers, with byte pointers R and S           */
-/* All references to R and S are forced to (unsigned char)                    */
-/* All multiply-divide words cleaned up                                       */
-/******************************************************************************/
-
 #include <Arduino.h>
 
 #include "SPIFFS.h"
@@ -46,8 +6,12 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
+#include "common.h"
 #include "config.h"
 #include "credentials.h"
+#include "index_html.h"
+#include "vm.h"
+#include "core.h"
 
 void showNetworkInfo(TFT_eSPI tft)
 {
@@ -83,68 +47,18 @@ void printNetworkInfo()
 TFT_eSPI tft = TFT_eSPI();
 WebServer server(80);
 
-/******************************************************************************/
-/* esp32Forth_51                                                              */
-/******************************************************************************/
-
-#define FALSE 0
-#define TRUE -1
-#define LOGICAL ? TRUE : FALSE
-#define LOWER(x, y) ((unsigned long)(x) < (unsigned long)(y))
-#define pop top = stack[(unsigned char)S--]
-#define push                         \
-    stack[(unsigned char)++S] = top; \
-    top =
-#define popR rack[(unsigned char)R--]
-#define pushR rack[(unsigned char)++R]
-
-long rack_main[256] = { 0 };
-long stack_main[256] = { 0 };
-long rack_background[256] = { 0 };
-long stack_background[256] = { 0 };
-__thread long* rack;
-__thread long* stack;
-__thread unsigned char R, S, bytecode;
-__thread long* Pointer;
-__thread long P, IP, WP, top, links, len;
-uint8_t* cData;
-__thread long long int d, n, m;
+unsigned char bytecode;
+long* Pointer;
+long WP, top, len;
+long long int d, n, m;
 String HTTPin;
 String HTTPout;
-TaskHandle_t background_thread;
 
 int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0;
 
-long data[16000] = {};
 int IMEDD = 0x80;
 int COMPO = 0x40;
 
-void HEADER(int lex, char seq[])
-{
-    P = IP >> 2;
-    int i;
-    int len = lex & 31;
-    data[P++] = links;
-    IP = P << 2;
-    Serial.println();
-    Serial.print(links, HEX);
-    for (i = links >> 2; i < P; i++) {
-        Serial.print(" ");
-        Serial.print(data[i], HEX);
-    }
-    links = IP;
-    cData[IP++] = lex;
-    for (i = 0; i < len; i++) {
-        cData[IP++] = seq[i];
-    }
-    while (IP & 3) {
-        cData[IP++] = 0;
-    }
-    Serial.println();
-    Serial.print(seq);
-    Serial.print(" ");
-    Serial.print(IP, HEX);
-}
 int CODE(int len, ...)
 {
     int addr = IP;
@@ -417,7 +331,7 @@ void AFT(int len, ...)
     IP = P << 2;
     va_end(argList);
 }
-void DOTQ(char seq[])
+void DOTQ(const char seq[])
 {
     P = IP >> 2;
     int i;
@@ -455,7 +369,7 @@ void STRQ(char seq[])
     Serial.print(" ");
     Serial.print(seq);
 }
-void ABORQ(char seq[])
+void ABORQ(const char seq[])
 {
     P = IP >> 2;
     int i;
@@ -486,29 +400,6 @@ void CheckSum()
         Serial.printf("%2x", cData[IP++]);
     }
     Serial.printf(" %2x", sum);
-}
-/******************************************************************************/
-/* ledc                                                                       */
-/******************************************************************************/
-/* LEDC Software Fade */
-// use first channel of 16 channels (started from zero)
-#define LEDC_CHANNEL_0 0
-// use 13 bit precission for LEDC timer
-#define LEDC_TIMER_13_BIT 13
-// use 5000 Hz as a LEDC base frequency
-#define LEDC_BASE_FREQ 5000
-// fade LED PIN (replace with LED_BUILTIN constant for built-in LED)
-#define LED_PIN 5
-int brightness = 255; // how bright the LED is
-
-// Arduino like analogWrite
-// value has to be between 0 and valueMax
-void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)
-{
-    // calculate duty, 8191 from 2 ^ 13 - 1
-    uint32_t duty = (8191 / valueMax) * min(value, valueMax);
-    // write duty to LEDC
-    ledcWrite(channel, duty);
 }
 
 /******************************************************************************/
@@ -914,14 +805,6 @@ void minn(void)
         pop;
 }
 
-void audio(void)
-{
-    WP = top;
-    pop;
-    ledcWriteTone(WP, top);
-    pop;
-}
-
 void sendPacket(void)
 {
 }
@@ -942,30 +825,6 @@ void peeek(void)
 void adc(void)
 {
     top = (long)analogRead(top);
-}
-
-void pin(void)
-{
-    WP = top;
-    pop;
-    ledcAttachPin(top, WP);
-    pop;
-}
-
-void duty(void)
-{
-    WP = top;
-    pop;
-    ledcAnalogWrite(WP, top, 255);
-    pop;
-}
-
-void freq(void)
-{
-    WP = top;
-    pop;
-    ledcSetup(WP, top, 13);
-    pop;
 }
 
 void (*primitives[72])(void) = {
@@ -1033,14 +892,14 @@ void (*primitives[72])(void) = {
     /* case 61 */ dovar,
     /* case 62 */ maxx,
     /* case 63 */ minn,
-    /* case 64 */ audio,
+    /* case 64 */ nop,
     /* case 65 */ sendPacket,
     /* case 66 */ poke,
     /* case 67 */ peeek,
     /* case 68 */ adc,
-    /* case 69 */ pin,
-    /* case 70 */ duty,
-    /* case 71 */ freq
+    /* case 69 */ nop,
+    /* case 70 */ nop,
+    /* case 71 */ nop
 };
 
 int as_nop = 0;
@@ -1107,24 +966,16 @@ int as_count = 60;
 int as_dovar = 61;
 int as_max = 62;
 int as_min = 63;
-int as_tone = 64;
+int as_tone = 64; //
 int as_sendPacket = 65;
 int as_poke = 66;
 int as_peek = 67;
 int as_adc = 68;
-int as_pin = 69;
-int as_duty = 70;
-int as_freq = 71;
+int as_pin = 69; //
+int as_duty = 70; //
+int as_freq = 71; //
 
-//void evaluate()
-//{ while (true){
-//    bytecode=(unsigned char)cData[P++];
-//    if (bytecode) {primitives[bytecode]();}
-//    else {break;}
-//  }                 // break on NOP
-//}
-
-__thread int counter = 0;
+int counter = 0;
 void evaluate()
 {
     while (true) {
@@ -1141,152 +992,9 @@ void evaluate()
     } // break on NOP
 }
 
-const char index_html[] PROGMEM = R"=====(
-<!html>
-<head>
-<title>eForth (esp32forth)</title>
-<style>
-body {
-    background-color: black;
-    color: #00e676;
-    font-family: 'Source Code Pro', monospace;
-    font-size: 20px;
-    height: 100%;
-    margin: 10px;
-    overflow: hidden;
-    width: 100%;
-}
-#screen {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow-y: scroll;
-    position: absolute;
-    width: 100%;
-}
-#buttons * {
-    background-color: #4CAF50;
-    border: none;
-    border-radius: 3px;
-    color: white;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-    margin: 4px 2px;
-    cursor: pointer;
-}
-#output {
-    background-color: black;
-    border: 0;
-    color: #00e676;
-    flex-grow: 1;
-    font-family: 'Source Code Pro', monospace;
-    font-size: 16px;
-    height: 80%;
-    resize: none;
-    width: 100%;
-}
-#prompt {
-    background-color: black;
-    border: 0;
-    color: #00e676;
-    font-family: 'Source Code Pro', monospace;
-    font-size: 16px;
-    outline:0;
-    padding: 5px;
-    width: 100%;
-}
-</style>
-</head>
-<body>
-<div id="screen">
-<div id="buttons">
-    eForth <input id="filepick" type="file" name="files[]"></input>
-    <button onclick="ask('hex')">hex</button>
-    <button onclick="ask('decimal')">decimal</button>
-    <button onclick="ask('words')">words</button>
-</div>
-<textarea id="output" readonly></textarea>
-<input id="prompt" type="prompt"></input>
-</div>
-<script>
-const prompt = document.getElementById('prompt');
-const filepick = document.getElementById('filepick');
-const output = document.getElementById('output');
-async function httpPost(url, items) {
-    const fd = new FormData();
-    for (k in items) {
-        fd.append(k, items[k]);
-    }
-    try {
-        const response = await fetch(url, {method:'POST', body: fd})
-        const text = await response.text();
-        return text;
-    } catch (e) {
-        return null;
-    }
-}
-async function ask(cmd) {
-    const data = await httpPost('/input', {cmd: cmd + '\n'});
-    if (data !== null) { output.value += data; }
-    output.scrollTop = output.scrollHeight;  // Scroll to the bottom
-}
-prompt.onkeyup = async function(event) {
-  if (event.keyCode === 13) {
-    event.preventDefault();
-    await ask(prompt.value);
-    prompt.value = '';
-  }
-};
-prompt.onblur = () => {
-    prompt.focus();
-};
-prompt.focus();
-filepick.onchange = function(event) {
-  if (event.target.files.length > 0) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const parts = e.target.result.split('\\n');
-      async function upload() {
-        if (parts.length === 0) { filepick.value = ''; return; }
-        await ask(parts.shift());
-        upload();
-      }
-      upload();
-    }
-    reader.readAsText(event.target.files[0]);
-  }
-};
-window.onload = async function() {
-  await ask('');
-  prompt.focus();
-};
-</script>
-</body>
-</html>
-)=====";
-
 static void returnFail(String msg)
 {
     server.send(500, "text/plain", msg + "\r\n");
-}
-
-void background(void* ipp)
-{
-    long* ipv = (long*)ipp;
-    rack = rack_background;
-    stack = stack_background;
-    Serial.println("background!!");
-    IP = *ipv;
-    S = 0;
-    R = 0;
-    top = 0;
-    P = 0x180; // EVAL
-    WP = 0x184;
-    evaluate();
-    for (;;) {
-    }
 }
 
 static void handleInput()
@@ -1303,32 +1011,16 @@ static void handleInput()
     data[0x66] = 0; // >IN
     data[0x67] = len; // #TIB
     data[0x68] = 0; // 'TIB
-    if (len > 3 && memcmp(cData, "bg ", 3) == 0) {
-        if (background_thread) {
-            vTaskDelete(background_thread);
-            background_thread = 0;
-        }
-        data[0x66] = 3; // Skip "bg "
-        // Start background thread 1024 byte stack.
-        xTaskCreate(background, "background", 1024, &IP, tskIDLE_PRIORITY, &background_thread);
-    } else {
-        P = 0x180; // EVAL
-        WP = 0x184;
-        evaluate();
-    }
-    //  Serial.println();
-    //  Serial.println("Return from Forth.");           // line cleaned up
-    //  Serial.print("Returning ");
+    P = 0x180; // EVAL
+    WP = 0x184;
+    evaluate();
     Serial.print(HTTPout.length());
-    //  Serial.println(" characters");
     server.setContentLength(HTTPout.length());
     server.send(200, "text/plain", HTTPout);
 }
 
 void setup()
 {
-    rack = rack_main;
-    stack = stack_main;
     P = 0x180;
     WP = 0x184;
     IP = 0;
@@ -1351,25 +1043,6 @@ void setup()
     }
 
     server.begin();
-    Serial.println("Booting esp32Forth v6.3 ...");
-
-    // Setup timer and attach timer to a led pin
-
-    // disconnecting code which interferes with the TTGO display
-    // ledcSetup(0, 100, LEDC_TIMER_13_BIT);
-    // ledcAttachPin(5, 0);
-    // ledcAnalogWrite(0, 250, brightness);
-
-    pinMode(2, OUTPUT);
-    digitalWrite(2, HIGH); // turn the LED2 on
-    pinMode(16, OUTPUT);
-    digitalWrite(16, LOW); // motor1 forward
-    pinMode(17, OUTPUT);
-    digitalWrite(17, LOW); // motor1 backward
-    pinMode(18, OUTPUT);
-    digitalWrite(18, LOW); // motor2 forward
-    pinMode(19, OUTPUT);
-    digitalWrite(19, LOW); // motor2 bacward
 
     IP = 512;
     R = 0;
