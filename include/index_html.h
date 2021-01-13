@@ -68,7 +68,7 @@ body {
     <button onclick="ask('words')">words</button>
 </div>
 <textarea id="output" readonly></textarea>
-<input id="prompt" type="prompt"></input>
+<input id="prompt" type="text"></input>
 </div>
 <script>
 const prompt = document.getElementById('prompt');
