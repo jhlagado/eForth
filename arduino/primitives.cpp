@@ -2,6 +2,7 @@
 #include "globals.h"
 #include "vm.h"
 #include "common.h"
+#include "http.h"
 
 /******************************************************************************/
 /* PRIMITIVES                                                                 */

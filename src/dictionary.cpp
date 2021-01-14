@@ -1,9 +1,11 @@
 #include <Arduino.h>
+#include "SPIFFS.h"
 
 #include "core.h"
 #include "globals.h"
 #include "primitives.h"
 #include "vm.h"
+#include "util.h"
 
 void CheckSum()
 {
@@ -618,4 +620,28 @@ void initDictionary()
     for (len = 0; len < 0x120; len++) {
         CheckSum();
     }
+}
+
+void uploadFile() {
+        // compile \data\load.txt
+    if (!SPIFFS.begin(true)) {
+        Serial.println("Error mounting SPIFFS");
+    }
+    File file = SPIFFS.open("/load.txt");
+    if (file) {
+        Serial.print("\n\nLoad file: ");
+        len = file.read(cData + 0x8000, 0x7000);
+        Serial.print(len);
+        Serial.println(" bytes.");
+        data[0x66] = 0; // >IN
+        data[0x67] = len; // #TIB
+        data[0x68] = 0x8000; // 'TIB
+        P = 0x180; // EVAL
+        WP = 0x184;
+        evaluate();
+        Serial.println(" Done loading.");
+        file.close();
+        SPIFFS.end();
+    }
+
 }
