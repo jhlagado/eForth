@@ -33,6 +33,7 @@ const char* pass = "YOUR_WIFI_PASSWORD";
 2. rename `/include/credentials_template.h` to `/include/credentials.h`
 3. plug in your esp32 device to your USB port.
 4. use PlatformIO to build and upload this project to your ESP32 device.
+5. note: the serial monitor works with a baud rate of 1000000 baud
 
 ## Running in Arduino IDE
 
@@ -49,6 +50,7 @@ This will copy the PlatformIO files to the folder ./arduino and rename `main.cpp
 -   You can then open this sketch up in the Arduino IDE.
 -   connect your TTGO ESP32 to a USB port
 -   Press the -> icon on the top left of the IDE
+-   note: the serial monitor works with a baud rate of 1000000 baud
 
 ## Open eForth in your browser
 
