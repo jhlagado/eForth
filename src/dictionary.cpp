@@ -1,11 +1,7 @@
 #include <Arduino.h>
 
-// #include "common.h"
-// #include "config.h"
 #include "core.h"
-// #include "credentials.h"
 #include "globals.h"
-// #include "index_html.h"
 #include "primitives.h"
 #include "vm.h"
 

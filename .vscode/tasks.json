@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Export to Arduino IDE",
+            "type": "shell",
+            "command": "./scripts/arduino.sh",
+            "windows": {
+                "command": ".\\scripts\\arduino.cmd"
+            },
+            "group": "none",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

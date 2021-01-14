@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Arduino.h>
+
 #define pop top = stack[(unsigned char)S--]
 #define push                         \
     stack[(unsigned char)++S] = top; \

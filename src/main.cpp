@@ -6,15 +6,13 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
-// #include "common.h"
 #include "config.h"
 #include "credentials.h"
-#include "index_html.h"
-#include "vm.h"
-#include "globals.h"
-#include "primitives.h"
-// #include "core.h"
 #include "dictionary.h"
+#include "globals.h"
+#include "index_html.h"
+#include "primitives.h"
+#include "vm.h"
 
 void showNetworkInfo(TFT_eSPI tft)
 {
@@ -121,7 +119,6 @@ void setup()
     server.begin();
 
     initDictionary();
-
 
     // compile \data\load.txt
     if (!SPIFFS.begin(true)) {
